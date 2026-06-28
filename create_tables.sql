@@ -9,6 +9,9 @@ drop table if exists doctors cascade;
 drop table if exists patients cascade;
 drop table if exists medical_cards cascade;
 drop table if exists appointments cascade;
+drop table if exists specialization cascade;
+drop table if exists doctors_specializations cascade;
+drop table if exists doctors_services cascade;
 
 create table rooms(
 	id serial primary key,
@@ -42,13 +45,22 @@ create table specialization (
 );
 create table doctors(
 	id serial primary key,
-	first_name varchar(50),
-	last_name varchar(50),
-	email varchar(70),
-	phone varchar(20),
+	first_name varchar(50) not null,
+	last_name varchar(50) not null,
+	email varchar(70) not null,
+	phone varchar(20) not null,
 	active bool not null default true
 );
 
+create table patients(
+	id serial primary key,
+	first_name varchar(50) not null,
+	last_name varchar(50) not null,
+	birth_day date not null,
+	email varchar(70) not null,
+	phone varchar(20) not null,
+	active bool not null default true
+);
 create table doctors_specializations (
 	doctor_id int references doctors(id) on delete cascade,
 	specialization_id int references specialization(id) on delete cascade,
@@ -60,4 +72,19 @@ create table doctors_services (
 	service_id int references services(id) on delete cascade,
 	-- най дублюється скільки хоче, але комбінація НЕ МОЖЕ дублюватись.
 	primary key (doctor_id, service_id)
+);
+create table medical_cards (
+	id serial primary key,
+	patient_id int unique not null references patients(id) on delete cascade,
+	created_at timestamp not null default current_timestamp
+);
+create table appointments(
+	id serial primary key,
+	patient_id int not null references patients(id),
+	doctor_id int not null references doctors(id),
+	service_id int not null references services(id),
+	room_id int not null references rooms(id),
+	shift_schedule_id int not null references work_shift_schedule(id),
+	appointment_date date not null,
+	status varchar(50) not null default 'Scheduled'
 );
