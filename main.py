@@ -1,13 +1,13 @@
-import uuid
 import psycopg2
 from psycopg2 import Error
+from psycopg2.extras import execute_values  # Швидка пакетна вставка
+from datetime import date, time, timedelta
 
-
-HOST = 'localhost' # put your credentials here
-USER = 'postgres' # put your credentials here
-PASSWORD = '1' # put your credentials here
-DATABASE = 'stores' # put your credentials here
-PORT = '5432' # put your credentials here
+HOST = 'localhost' 
+USER = 'postgres' 
+PASSWORD = 'itstartswithone' 
+DATABASE = 'hospital' 
+PORT = '5432' 
 
 
 def create_connection():
@@ -27,123 +27,108 @@ def create_connection():
         return None
 
 
-def execute_query(connection, query, data):
-    """Execute a single query."""
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute(query, data)
-        connection.commit()
-        print("Query executed successfully")
-    except Error as e:
-        connection.rollback()
-        print(f"The error '{e}' occurred")
-
-
 def insert_data():
     connection = create_connection()
     if connection is None:
         return
 
-    students_query = """
-    INSERT INTO students (id, first_name, last_name, email, phone, course, educational_degree, speciality, active)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-    ON CONFLICT (id) DO NOTHING
-    """
-    students_data = [
-        (str(uuid.uuid4()), "John", "Doe", "john.doe@example.com", "1234567890", 1, "Bachelor", "Computer Science", True),
-        (str(uuid.uuid4()), "Jane", "Smith", "jane.smith@example.com", "0987654321", 2, "Master", "Mathematics", True),
-    ]
-    for data in students_data:
-        execute_query(connection, students_query, data)
+    cursor = connection.cursor()
 
-    rooms_query = """
-    INSERT INTO rooms (id, building, floor, number, display_name, seats_number)
-    VALUES (%s, %s, %s, %s, %s, %s)
-    ON CONFLICT (id) DO NOTHING
-    """
-    rooms_data = [
-        (str(uuid.uuid4()), "Building A", 1, 101, "Room 101", 30),
-        (str(uuid.uuid4()), "Building B", 2, 202, "Room 202", 50),
-    ]
-    for data in rooms_data:
-        execute_query(connection, rooms_query, data)
+    try:
+        print("Заповнення базових довідників...")
+        
+        # 1. Rooms
+        rooms_query = "INSERT INTO rooms (building, floor, number, display_name, room_type) VALUES %s"
+        rooms_data = [
+            ("Головний корпус", 1, 101, "Кабінет 101", "Консультаційний"),
+            ("Хірургічний корпус", 2, 202, "Операційна 2", "Операційна"),
+        ]
+        execute_values(cursor, rooms_query, rooms_data)
 
-    courses_query = """
-    INSERT INTO courses (id, course_display_short_name, course_display_full_name, course_description, lectures_num, practices_num)
-    VALUES (%s, %s, %s, %s, %s, %s)
-    ON CONFLICT (id) DO NOTHING
-    """
-    courses_data = [
-        (str(uuid.uuid4()), "CS101", "Introduction to Computer Science", "Basic concepts of computer science", 30, 15),
-        (str(uuid.uuid4()), "MATH201", "Advanced Mathematics", "In-depth study of advanced mathematical concepts", 25, 10),
-    ]
-    for data in courses_data:
-        execute_query(connection, courses_query, data)
+        # 2. Services
+        services_query = "INSERT INTO services (service_name, description, price, duration) VALUES %s"
+        services_data = [
+            ("Первинна充онсультація терапевта", "Огляд пацієнта, збір анамнезу", 150.00, 20),
+            ("УЗД черевної порожнини", "Ультразвукове дослідження внутрішніх органів", 450.00, 30),
+        ]
+        execute_values(cursor, services_query, services_data)
 
-    instructors_query = """
-    INSERT INTO instructors (id, first_name, last_name, email, phone, active)
-    VALUES (%s, %s, %s, %s, %s, %s)
-    ON CONFLICT (id) DO NOTHING
-    """
-    instructors_data = [
-        (str(uuid.uuid4()), "Alice", "Johnson", "alice.johnson@example.com", "1122334455", True),
-        (str(uuid.uuid4()), "Bob", "Williams", "bob.williams@example.com", "5544332211", True),
-    ]
-    for data in instructors_data:
-        execute_query(connection, instructors_query, data)
+        # 3. Work Shift Schedule
+        schedule_query = "INSERT INTO work_shift_schedule (start_time, end_time) VALUES %s"
+        schedule_data = [
+            (time(8, 0), time(8, 30)),
+            (time(8, 30), time(9, 0)),
+        ]
+        execute_values(cursor, schedule_query, schedule_data)
 
-    lessons_schedule_query = """
-    INSERT INTO lessons_schedule (id, start_time, end_time)
-    VALUES (%s, %s, %s)
-    ON CONFLICT (id) DO NOTHING
-    """
-    lessons_schedule_data = [(1, "08:00:00", "09:00:00"), (2, "09:00:00", "10:00:00")]
-    for data in lessons_schedule_data:
-        execute_query(connection, lessons_schedule_query, data)
+        # 4. Specialization
+        spec_query = "INSERT INTO specialization (name) VALUES %s ON CONFLICT (name) DO NOTHING"
+        spec_data = [("Терапевт",), ("Діагност",)]
+        execute_values(cursor, spec_query, spec_data)
 
-    instructors_courses_query = """
-    INSERT INTO instructors_courses (instructor_id, course_id)
-    VALUES (%s, %s)
-    ON CONFLICT (instructor_id, course_id) DO NOTHING
-    """
-    instructors_courses_data = [(instructors_data[0][0], courses_data[0][0]), (instructors_data[1][0], courses_data[1][0])]
-    for data in instructors_courses_data:
-        execute_query(connection, instructors_courses_query, data)
+        # 5. Doctors
+        doctors_query = "INSERT INTO doctors (first_name, last_name, email, phone, active) VALUES %s"
+        doctors_data = [
+            ("Іван", "Іванов", "ivanov@hospital.com", "+380501112233", True),
+            ("Марія", "Петренко", "petrenko@hospital.com", "+380674445566", True),
+        ]
+        execute_values(cursor, doctors_query, doctors_data)
 
-    students_course_groups_query = """
-    INSERT INTO students_course_groups (id, course_id)
-    VALUES (%s, %s)
-    ON CONFLICT (id) DO NOTHING
-    """
-    students_course_groups_data = [(str(uuid.uuid4()), courses_data[0][0]), (str(uuid.uuid4()), courses_data[1][0])]
-    for data in students_course_groups_data:
-        execute_query(connection, students_course_groups_query, data)
+        # Зв'язки лікарів
+        execute_values(cursor, "INSERT INTO doctors_specializations (doctor_id, specialization_id) VALUES %s ON CONFLICT DO NOTHING", [(1, 1), (2, 2)])
+        execute_values(cursor, "INSERT INTO doctors_services (doctor_id, service_id) VALUES %s ON CONFLICT DO NOTHING", [(1, 1), (2, 2)])
 
-    students_course_group_students_query = """
-    INSERT INTO students_course_group_students (student_id, group_id)
-    VALUES (%s, %s)
-    ON CONFLICT (student_id, group_id) DO NOTHING
-    """
-    students_course_group_students_data = [
-        (students_data[0][0], students_course_groups_data[0][0]),
-        (students_data[1][0], students_course_groups_data[1][0]),
-    ]
-    for data in students_course_group_students_data:
-        execute_query(connection, students_course_group_students_query, data)
+        # 6. ГЕНЕРАЦІЯ ВЕЛИКИХ ДАНИХ (100 000 Пацієнтів)
+        print("Генерація 100 000 пацієнтів...")
+        patients_data = [
+            (f"Пацієнт_{i}", f"Прізвище_{i}", date(1980, 1, 1) + timedelta(days=i % 10000), f"patient_{i}@example.com", f"+38093111{i:04d}", True)
+            for i in range(1, 100001)
+        ]
+        patients_query = "INSERT INTO patients (first_name, last_name, birthday, email, phone, active) VALUES %s ON CONFLICT DO NOTHING"
+        
+        # Вставляємо пацієнтів порціями по 20 000 для економії пам'яті
+        for j in range(0, len(patients_data), 20000):
+            execute_values(cursor, patients_query, patients_data[j:j+20000])
 
-    schedule_query = """
-    INSERT INTO schedule (id, course_id, instructor_id, students_course_group_id, week_day, lesson_schedule_id, room_id)
-    VALUES (%s, %s, %s, %s, %s, %s, %s)
-    ON CONFLICT (id) DO NOTHING
-    """
-    schedule_data = [
-        (1, courses_data[0][0], instructors_data[0][0], students_course_groups_data[0][0], "Monday", 1, rooms_data[0][0]),
-        (2, courses_data[1][0], instructors_data[1][0], students_course_groups_data[1][0], "Tuesday", 2, rooms_data[1][0]),
-    ]
-    for data in schedule_data:
-        execute_query(connection, schedule_query, data)
+        # Автоматично створюємо медичні картки для всіх згенерованих пацієнтів
+        print("Створення медичних карток...")
+        cursor.execute("INSERT INTO medical_cards (patient_id) SELECT id FROM patients ON CONFLICT DO NOTHING")
 
-    connection.close()
+        # 7. ГЕНЕРАЦІЯ ВЕЛИКИХ ДАНИХ (500 000 Прийомів)
+        print("Генерація 500 000 записів на прийом (це займе близько 10-15 секунд)...")
+        
+        appointments_data = []
+        start_date = date(2026, 1, 1)
+        
+        # Щоб не порушити твої UNIQUE індекси (doctor_id, appointment_date, shift_schedule_id)
+        # ми будемо зсувати дату або зміну для кожного нового запису
+        for i in range(1, 500001):
+            patient_id = (i % 100000) + 1  # Зациклюємо по створених 100к пацієнтах
+            doctor_id = (i % 2) + 1        # Чергуємо лікаря 1 та 2
+            room_id = (i % 2) + 1          # Чергуємо кімнату 1 та 2
+            shift_id = (i % 2) + 1         # Чергуємо зміну 1 та 2
+            
+            # Зсуваємо день вперед кожні 2 записи, щоб у лікаря/кімнати не було двох записів на один слот в один день
+            date_offset = i // 2 
+            app_date = start_date + timedelta(days=date_offset)
+            
+            appointments_data.append((patient_id, doctor_id, 1, room_id, shift_id, app_date, 'Scheduled'))
+
+        appointments_query = "INSERT INTO appointments (patient_id, doctor_id, service_id, room_id, shift_schedule_id, appointment_date, status) VALUES %s"
+        
+        for j in range(0, len(appointments_data), 20000):
+            execute_values(cursor, appointments_query, appointments_data[j:j+20000])
+
+        connection.commit()
+        print("Всі дані успішно завантажено!")
+
+    except Error as e:
+        connection.rollback()
+        print(f"Помилка під час генерації: {e}")
+    finally:
+        cursor.close()
+        connection.close()
+        print("Підключення до БД закрито.")
 
 
 if __name__ == "__main__":
