@@ -23,6 +23,8 @@ create table rooms(
 	display_name varchar(200) not null,
 	--тип (операційна і тд)
 	room_type varchar(200) not null
+	constraint chk_room_floor check(floor >= -1),
+	constraint chk_room_number check(number > 0)
 );
 create table services(
 	id serial primary key,
@@ -31,13 +33,16 @@ create table services(
 	description text not null,
 	price numeric(10,2) not null,
 	-- кількість часу, в хвилинах
-	duration int not null
+	duration int not null,
+	constraint chk_service_price check(price > 0.00),
+	constraint chk_service_duration check(duration >= 5) --мінімум 5 хвилин
 );
 --проміжки/слоти на запис
 create table work_shift_schedule(
 	id serial primary key,
 	start_time time not null,
 	end_time time not null
+	constraint chk_time check(end_time > start_time)
 );
 create table specialization (
 	id serial primary key,
@@ -49,17 +54,20 @@ create table doctors(
 	last_name varchar(50) not null,
 	email varchar(70) not null,
 	phone varchar(20) not null,
-	active bool not null default true
+	active bool not null default true,
+	constraint chk_doctor_email check(email like '%@%')
 );
 
 create table patients(
 	id serial primary key,
 	first_name varchar(50) not null,
 	last_name varchar(50) not null,
-	birth_day date not null,
-	email varchar(70) not null,
+	birthday date not null,
+	email varchar(70) not null unique,
 	phone varchar(20) not null,
 	active bool not null default true
+	constraint chk_patient_bday check(birthday <= current_date)
+	constraint chk_patient_email check(email like '%@%')
 );
 create table doctors_specializations (
 	doctor_id int references doctors(id) on delete cascade,
@@ -88,3 +96,18 @@ create table appointments(
 	appointment_date date not null,
 	status varchar(50) not null default 'Scheduled'
 );
+
+-- заборона комбінації (щоб не можна було до одного лікаря записати дві людини на той же час)
+create unique index if not exists idx_appointments_doctor_date_shift 
+on appointments (doctor_id, appointment_date, shift_schedule_id);
+-- те саме для кімнати
+create unique index if not exists idx_appointments_room_date_shift
+on appointments(room_id, appointment_date, shift_schedule_id);
+-- те саме для пацієнта
+create unique index if not exists idx_appointments_patient_date_shift
+on appointments(patient_id, appointment_date, shift_schedule_id);
+
+create index if not exists idx_appointments_patient_id on appointments(patient_id);
+create index if not exists idx_appointments_doctor_date on appointments(doctor_id, appointment_date);
+create index if not exists idx_doctors_last_name on doctors(last_name);
+create index if not exists idx_patients_phone on patients(phone);
